@@ -279,11 +279,13 @@ def main(pais):
 
         #update threshold and select the edges
         edges = update_threshold_select_edges(k, edges_possibilities, edges_frequency)
+        if len(edges)==0:
+            edges.append(('Emission-1','Emission')) 
 
         tf = time.time()
         timemodel.append(tf-ti)
         #forecast initial in day 8 (fit from 01 until 07)
-        if i >= dates[6]:
+        if i >= dates[6] and i+timedelta(days = 1) in dates:
             #bins
             bins = bins_values(pais)
             
@@ -345,7 +347,7 @@ def main(pais):
                 
                 #solve limitation of unknown level 
                 for col in predict_data.columns:
-                    predict_data[col][predict_data[col]>=len(set(fit_datah[col]))] = len(set(fit_data[col]))-1
+                    predict_data[col][predict_data[col]>=len(set(fit_datah[col]))] = len(set(fit_datah[col]))-1
                 y_pred = model.predict(predict_data)
                 y_pred[target_variable] = y_pred[target_variable].replace(np.arange(0,len(levels[target_variable])),levels[target_variable])
                 for v in y_pred[target_variable]:
