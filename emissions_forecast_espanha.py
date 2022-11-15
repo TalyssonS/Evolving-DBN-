@@ -289,9 +289,9 @@ def main(pais):
             #bins
             bins = bins_values(pais)
             
-            #fit dataset (last 7 days)
-            fit_data = get_dataset(pais,i-timedelta(days = 6), i)
-            fit_dataall = get_dataset_allfeatures(pais,i-timedelta(days = 6), i)
+            #fit dataset (last 3 days)
+            fit_data = get_dataset(pais,i-timedelta(days = 2), i)
+            fit_dataall = get_dataset_allfeatures(pais,i-timedelta(days = 2), i)
 
             #predict data of the entire day
             predict_data_day = get_dataset(pais,i+timedelta(days = 1), i+timedelta(days = 1))
@@ -334,6 +334,14 @@ def main(pais):
                 predict_data = predict_data_day.iloc[[h]]
                 predictall = predict_dataall.iloc[[h]]
                 fit_datah = fit_data.loc[0:len(fit_data)-3+h] #tau = 3 (forecast horizon)
+                
+                smote = RandomOverSampler(random_state = 42)
+                y = fit_datah[target_variable]
+                X = fit_datah.copy()
+                del X[target_variable]
+                Xc, yc = smote.fit_resample(X,y)
+                fit_datah = Xc
+                fit_datah[target_variable] = yc
                 
                 #fit the bayesian model to get de CPTs
                 model.fit(fit_datah)
