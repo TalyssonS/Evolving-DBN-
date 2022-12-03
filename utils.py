@@ -47,6 +47,7 @@ class HillClimbSearch(StructureEstimator):
                     new_parents = old_parents + [X]
                     if max_indegree is None or len(new_parents) <= max_indegree:
                         score_delta = local_score(Y, new_parents) - local_score(Y, old_parents)
+                  
                         yield(operation, score_delta)
 
         for (X, Y) in model.edges():  # (2) remove single edge
@@ -121,35 +122,6 @@ class HillClimbSearch(StructureEstimator):
                 tabu_list = ([best_operation] + tabu_list)[:tabu_length]
             iterr=iterr+1
         return current_model,scorit
-    
-class TimedFun(HillClimbSearch):
-    """
-    Classe custom de otimização
-    Restringida por tempo de execução
-    """
-    def __init__(self, fun, stop_after=50):
-        super().__init__()
-        
-        self.fun_in = fun
-        self.started = False
-        self.stop_after = stop_after
-        self.last = 0
-
-    def fun(self, x):
-        if self.started is False:
-            self.started = time.time()
-        elif abs(time.time() - self.started) >= self.stop_after:
-            raise ValueError("Time is over.")
-        
-        if self.started:
-            t = int(abs(time.time() - self.started))
-            if (t >= 600) and (int(t/600) != self.last):
-                self.last = int(t/600)
-                self.opt_logger.info('Tempo execução optimization: [%.1f] minutos' % (int(t/600)*10))
-            
-        self.fun_value = self.fun_in(x)
-        self.x = x
-        return self.fun_value
 
 def EdgesModel(data, FullOpt):
     ## score definition
@@ -170,6 +142,16 @@ def EdgesModel(data, FullOpt):
             json.dump( best_model.edges(), outfile)
 
     #return best_model.edges(),val[1]
+    t = dir()
+    ip=get_ipython()
+    user_ns=ip.user_ns
+    for i in t:
+        if i != 'best_model':
+            try:
+                del user_ns[i]
+                gc.collect()
+            except:
+                ok = 0
     return best_model.edges()
 
 def ModelInference(best_model, data):

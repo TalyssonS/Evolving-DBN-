@@ -1,12 +1,9 @@
-import DefModules as DM
+from pgmpy.estimators import HillClimbSearch
 from datetime import datetime, timedelta
-FullOpt =  True
 from pgmpy.inference import VariableElimination
-import jupyter_contrib_nbextensions
 import random
 import warnings
 import sys 
-import logging
 import pandas as pd
 import time
 import numpy as np
@@ -15,20 +12,19 @@ from tqdm import tqdm
 import psycopg2 as pg
 import sqlalchemy as sq
 import networkx as nx
-logging.disable()
-if not sys.warnoptions:
-    warnings.simplefilter("ignore")
-from pgmpy.models import BayesianModel
-from pgmpy.estimators import HillClimbSearch
-FullOpt =  True #True é para usar HC e false busca exaustiva
-from pgmpy.inference import VariableElimination
+from pgmpy.models import BayesianNetwork
 from pgmpy.estimators import BayesianEstimator
-from pgmpy.estimators import BdeuScore
+from pgmpy.estimators import BDeuScore 
+from pgmpy.estimators import K2Score
+from pgmpy.estimators import AICScore
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import median_absolute_error
 import matplotlib.pyplot as plt
-from imblearn.over_sampling import RandomOverSampler
+import logging
+logging.disable()
+if not sys.warnoptions:
+    warnings.simplefilter("ignore")
 
 def smooth(y, box_pts):
     vi = y[0]
@@ -245,6 +241,7 @@ def real_values(pais, data):
     return df
 
 def main(pais):
+    
     #initialize auxiliary variables
     k=1 #total days used
     target_variable = 'Emission'
@@ -255,7 +252,7 @@ def main(pais):
     forecast_values = pd.DataFrame()
 
     #read all available dates
-    dates = get_all_dates(pais)
+    dates = get_all_dates(pais)[k-1:]
 
     #begin the forecast experiment
     for i in tqdm(dates):
@@ -264,12 +261,17 @@ def main(pais):
         forecast_date = []
         forecast_hour = []
         forecast_v = []
+        
         #dataset to learn the model
         data_learn = get_dataset(pais,i, i+timedelta(days = 0))
         #structural learning with the dataset of day i
-        data_learn.drop(['Date','Hour'], axis = 1, inplace = True)
+        data_learn.drop(['Date','Hour'], axis = 1, inplace = True)        
         ti = time.time()
-        best_model = DM.EdgesModel(data_learn, FullOpt)[0]
+        est = HillClimbSearch(data_learn)
+        best_model = est.estimate(scoring_method=AICScore(data_learn),  show_progress=False)
+        best_model = list(best_model.edges())
+        if len(best_model)==0:
+            best_model = [('Emission-1','Emission')]
 
         #get the markov blanket
         best_model = blanket(best_model, target_variable)
@@ -284,14 +286,16 @@ def main(pais):
 
         tf = time.time()
         timemodel.append(tf-ti)
-        #forecast initial in day 8 (fit from 01 until 07)
-        if i >= dates[6] and i+timedelta(days = 1) in dates:
+        #forecast initial in day 7 (fit from 00 until 06)
+        
+        inicio = dates[6] #begin the forecast on day 7 (6+1)
+        if i >= inicio and i+timedelta(days = 1) in dates:
             #bins
             bins = bins_values(pais)
             
             #fit dataset (last 3 days)
-            fit_data = get_dataset(pais,i-timedelta(days = 2), i)
-            fit_dataall = get_dataset_allfeatures(pais,i-timedelta(days = 2), i)
+            fit_data = get_dataset(pais,i-timedelta(days = 6), i)
+            fit_dataall = get_dataset_allfeatures(pais,i-timedelta(days = 6), i)
 
             #predict data of the entire day
             predict_data_day = get_dataset(pais,i+timedelta(days = 1), i+timedelta(days = 1))
@@ -321,7 +325,7 @@ def main(pais):
             predict_data_day = predict_data_day.astype(int)
             
             #Using the edges, get the bayesian model object
-            model = BayesianModel(edges)
+            model = BayesianNetwork(edges)
 
             #aux
             aux_fore = []
@@ -334,18 +338,10 @@ def main(pais):
                 predict_data = predict_data_day.iloc[[h]]
                 predictall = predict_dataall.iloc[[h]]
                 fit_datah = fit_data.loc[0:len(fit_data)-3+h] #tau = 3 (forecast horizon)
-                
-                smote = RandomOverSampler(random_state = 42)
-                y = fit_datah[target_variable]
-                X = fit_datah.copy()
-                del X[target_variable]
-                Xc, yc = smote.fit_resample(X,y)
-                fit_datah = Xc
-                fit_datah[target_variable] = yc
-                
+                                
                 #fit the bayesian model to get de CPTs
-                model.fit(fit_datah)
-                model.get_cpds(node = target_variable)
+                model.fit(fit_datah,n_jobs = 1)
+                #model.get_cpds(node = target_variable)
 
                 #drop all variable in time window T+1 (unknown values - future states)
                 for c in predict_data.columns:
@@ -356,14 +352,14 @@ def main(pais):
                 #solve limitation of unknown level 
                 for col in predict_data.columns:
                     predict_data[col][predict_data[col]>=len(set(fit_datah[col]))] = len(set(fit_datah[col]))-1
-                y_pred = model.predict(predict_data)
+                y_pred = model.predict(predict_data,n_jobs = 1)
                 y_pred[target_variable] = y_pred[target_variable].replace(np.arange(0,len(levels[target_variable])),levels[target_variable])
                 for v in y_pred[target_variable]:
                     aux_fore.append((bins[target_variable][v]+bins[target_variable][v+1])/2)
                 fit_data = fit_data.append(predict_data_day.loc[h-3:h-3]).reset_index(drop = True) 
             forecast_aux['Date'] = forecast_date
             forecast_aux['Hour'] = forecast_hour
-            forecast_aux['Emissions Forecast'] = smooth(aux_fore,5)
+            forecast_aux['Emissions Forecast'] = smooth(aux_fore,3)
             real_value = real_values(pais, i)
             forecast_aux[target_variable] = real_value[target_variable]
             forecast_values = forecast_values.append(forecast_aux)
@@ -379,9 +375,9 @@ def main(pais):
     df_time_model['tempo'] = timemodel
     df_time_inference = pd.DataFrame()
     df_time_inference['tempo'] = timeinference
-    
-    df_edges.to_sql(name='edges_frequency_'+str(pais), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
-    df_time_model.to_sql(name='time_model_'+str(pais), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
-    df_time_inference.to_sql(name='time_inference_'+str(pais), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
-    forecast_values.to_sql(name='forecast_'+str(pais), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
+
+    df_edges.to_sql(name='edges_frequency_final_'+str(pais), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
+    df_time_model.to_sql(name='time_model_final_'+str(pais), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
+    df_time_inference.to_sql(name='time_inference_final_'+str(pais), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
+    forecast_values.to_sql(name='forecast_final_'+str(pais), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
 main('portugal')
