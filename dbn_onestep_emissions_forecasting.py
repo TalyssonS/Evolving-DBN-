@@ -88,29 +88,30 @@ def blanket(model,variable):
             blanket.append(i)
     return blanket
 
-def get_all_dates(pais):
-    q = '''select distinct cast("Date" as DATE) as datas from pre_processed_data.dbn_features_selected_{pais} order by datas'''.format(pais=pais)
+def get_all_dates(pais,horizonte):
+    q = '''select distinct cast("Date" as DATE) as datas from pre_processed_data.dbn_features_selected_{pais}{horizonte} order by datas'''.format(pais=pais,horizonte=horizonte)
     conn = open_connection()
     date = pd.read_sql(q,conn)
     conn.close()
     datas = date['datas'].tolist()
     return datas
 
-def get_dataset(pais,date_ini, date_fin):
+def get_dataset(pais,date_ini, date_fin,horizonte):
     q = '''select * 
-    from pre_processed_data.dbn_features_selected_{pais} where "Date" between '{date_ini}' and '{date_fin}' '''.format(pais=pais,date_ini=date_ini,date_fin=date_fin)
+    from pre_processed_data.dbn_features_selected_{pais}{horizonte} where "Date" between '{date_ini}' and '{date_fin}' '''.format(pais=pais,date_ini=date_ini,date_fin=date_fin,horizonte=horizonte)
     conn = open_connection()
     dataset = pd.read_sql(q,conn)
     conn.close()
     return dataset
 
-def get_dataset_allfeatures(pais,date_ini, date_fin):
+def get_dataset_allfeatures(pais,date_ini, date_fin, horizonte):
     q = '''select * 
-    from pre_processed_data.dbn_{pais} where "Date" between '{date_ini}' and '{date_fin}' '''.format(pais=pais,date_ini=date_ini,date_fin=date_fin)
+    from pre_processed_data.dbn_{pais}{horizonte} where "Date" between '{date_ini}' and '{date_fin}' '''.format(pais=pais,date_ini=date_ini,date_fin=date_fin,horizonte=horizonte)
     conn = open_connection()
     dataset = pd.read_sql(q,conn)
     conn.close()
     return dataset
+
 
 def bins_values(pais):
     q = '''select "Emission" from pre_processed_data.bins_{pais} where "Emission" is not null'''.format(pais = pais)
@@ -126,7 +127,7 @@ def real_values(pais, data):
     conn.close()
     return df
 
-def main(pais):
+def main(pais,horizonte):
     #initialize auxiliary variables
     k=1 #total days used
     target_variable = 'Emission'
@@ -135,10 +136,10 @@ def main(pais):
     forecast_values = pd.DataFrame()
 
     #read all available dates
-    dates = get_all_dates(pais)[k-1:]
+    dates = get_all_dates(pais,horizonte)
     
     #dataset to learn the model
-    data_learn = get_dataset(pais,dates[0], dates[0]+timedelta(days = 6))
+    data_learn = get_dataset(pais,dates[0], dates[0]+timedelta(days = 6),horizonte)
     #structural learning with the dataset of day i
     data_learn.drop(['Date','Hour'], axis = 1, inplace = True)        
     est = HillClimbSearch(data_learn)
@@ -165,13 +166,13 @@ def main(pais):
             #bins
             bins = bins_values(pais)
             
-            #fit dataset (last 3 days)
-            fit_data = get_dataset(pais,i-timedelta(days = 6), i)
-            fit_dataall = get_dataset_allfeatures(pais,i-timedelta(days = 6), i)
+            #fit dataset (last 7 days)
+            fit_data = get_dataset(pais,i-timedelta(days = 6), i,horizonte)
+            fit_dataall = get_dataset_allfeatures(pais,i-timedelta(days = 6), i,horizonte)
 
             #predict data of the entire day
-            predict_data_day = get_dataset(pais,i+timedelta(days = 1), i+timedelta(days = 1))
-            predict_dataall = get_dataset_allfeatures(pais,i+timedelta(days = 1), i+timedelta(days = 1))
+            predict_data_day = get_dataset(pais,i+timedelta(days = 1), i+timedelta(days = 1),horizonte)
+            predict_dataall = get_dataset_allfeatures(pais,i+timedelta(days = 1), i+timedelta(days = 1),horizonte)
 
             #detects independent variables
             independentes=[]
@@ -209,7 +210,7 @@ def main(pais):
                 forecast_hour.append(h)
                 predict_data = predict_data_day.iloc[[h]]
                 predictall = predict_dataall.iloc[[h]]
-                fit_datah = fit_data.loc[0:len(fit_data)-3+h] #tau = 3 (forecast horizon)
+                fit_datah = fit_data.loc[0:len(fit_data)-horizonte+h] #tau = horizonte (forecast horizon)
                                 
                 #fit the bayesian model to get de CPTs
                 model.fit(fit_datah,n_jobs = 1)
@@ -228,7 +229,7 @@ def main(pais):
                 y_pred[target_variable] = y_pred[target_variable].replace(np.arange(0,len(levels[target_variable])),levels[target_variable])
                 for v in y_pred[target_variable]:
                     aux_fore.append((bins[target_variable][v]+bins[target_variable][v+1])/2)
-                fit_data = fit_data.append(predict_data_day.loc[h-3:h-3]).reset_index(drop = True) 
+                fit_data = fit_data.append(predict_data_day.loc[h-horizonte:h-horizonte]).reset_index(drop = True) 
             forecast_aux['Date'] = forecast_date
             forecast_aux['Hour'] = forecast_hour
             forecast_aux['Emissions Forecast'] = smooth(aux_fore,3)
@@ -242,8 +243,8 @@ def main(pais):
     df_time_inference = pd.DataFrame()
     df_time_inference['tempo'] = timeinference
 
-    df_time_inference.to_sql(name='time_inference_final_'+str(pais)+str('dbn_onestep'), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
-    forecast_values.to_sql(name='forecast_final_'+str(pais)+str('dbn_onestep'), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
+    df_time_inference.to_sql(name='time_inference_final_'+str(pais)+str('dbn_onestep')+str(horizonte), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
+    forecast_values.to_sql(name='forecast_final_'+str(pais)+str('dbn_onestep')+str(horizonte), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
 paises = ['alemanha','belgica','espanha', 'portugal']
 for pais in paises:
-    main(pais)
+    main(pais,3)
