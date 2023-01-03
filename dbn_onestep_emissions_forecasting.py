@@ -245,6 +245,6 @@ def main(pais,horizonte):
 
     df_time_inference.to_sql(name='time_inference_final_'+str(pais)+str('dbn_onestep')+str(horizonte), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
     forecast_values.to_sql(name='forecast_final_'+str(pais)+str('dbn_onestep')+str(horizonte), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
-paises = ['alemanha','belgica','espanha', 'portugal']
+paises = ['germany','belgium','spain', 'portugal']
 for pais in paises:
     main(pais,3)

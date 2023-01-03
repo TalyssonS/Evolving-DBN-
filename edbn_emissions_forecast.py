@@ -368,19 +368,18 @@ def main(pais,horizonte):
             timeinference.append(tf_inf-ti_inf)
         k = k+1
     #save the results on postgres
-    df_edges = pd.DataFrame()
-    df_edges['edges'] = edges_possibilities
-    df_edges['frequencia'] = edges_frequency
-    df_edges['total days'] = k-1
+    #df_edges = pd.DataFrame()
+    #df_edges['edges'] = edges_possibilities
+    #df_edges['frequencia'] = edges_frequency
+    #df_edges['total days'] = k-1
     df_time_model = pd.DataFrame()
     df_time_model['tempo'] = timemodel
     df_time_inference = pd.DataFrame()
     df_time_inference['tempo'] = timeinference
 
-    df_edges.to_sql(name='edges_frequency_final_'+str(pais)+str(horizonte), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
     df_time_model.to_sql(name='time_model_final_'+str(pais)+str(horizonte), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
     df_time_inference.to_sql(name='time_inference_final_'+str(pais)+str(horizonte), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
     forecast_values.to_sql(name='forecast_final_'+str(pais)+str(horizonte), con = get_connection(),schema = 'results', if_exists = 'replace', chunksize = None, index = False)
-paises = ['alemanha','belgica','espanha', 'portugal']
+paises = ['germany','belgium','spain', 'portugal']
 for pais in paises:
     main(pais,3)
