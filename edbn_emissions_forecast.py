@@ -26,21 +26,6 @@ logging.disable()
 if not sys.warnoptions:
     warnings.simplefilter("ignore")
 
-def smooth(y, box_pts):
-    vi = y[0]
-    vf = y[len(y)-1]
-    box = np.ones(box_pts)/box_pts
-    y_smooth = np.convolve(y, box, mode='same')
-    y_smooth[0] = vi
-    y_smooth[len(y_smooth)-1] = vf
-    return y_smooth
-
-def errorf (real,forecast):
-    error=[]
-    for i in range(len(real)):
-        error.append(real[i]-forecast[i])
-    return error
-
 def open_connection():
     '''
     FUNCTION TO CONNECT TO THE POSTGRESQL DATABASE
@@ -199,6 +184,21 @@ def update_edges_frequencies(best_model, edges_possibilities, edges_frequency):
                     if best_model[v] == edges_possibilities[f]:
                         edges_frequency[f]=edges_frequency[f]+1
     return edges_possibilities, edges_frequency
+
+def smooth(y, box_pts):
+    vi = y[0]
+    vf = y[len(y)-1]
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    y_smooth[0] = vi
+    y_smooth[len(y_smooth)-1] = vf
+    return y_smooth
+
+def errorf (real,forecast):
+    error=[]
+    for i in range(len(real)):
+        error.append(real[i]-forecast[i])
+    return error
 
 def update_threshold_select_edges(k, edges_possibilities, edges_frequency):
     fth = 1/3+np.sqrt(2/k)
@@ -368,10 +368,6 @@ def main(pais,horizonte):
             timeinference.append(tf_inf-ti_inf)
         k = k+1
     #save the results on postgres
-    #df_edges = pd.DataFrame()
-    #df_edges['edges'] = edges_possibilities
-    #df_edges['frequencia'] = edges_frequency
-    #df_edges['total days'] = k-1
     df_time_model = pd.DataFrame()
     df_time_model['tempo'] = timemodel
     df_time_inference = pd.DataFrame()
