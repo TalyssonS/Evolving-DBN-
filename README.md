@@ -1,6 +1,9 @@
 # Evolving-DBN by an analytical threshold
 This project presents the use of Evolving Dynamic Bayesian Networks for $CO_2$ Emissions Forecasting in Multi-Source Power Generation Systems of Different Countries.
 
+![8014graphical_abstract](https://github.com/TalyssonS/Evolving-DBN-/assets/41801745/edf6d6c3-3c3a-4410-b4a6-4d06a8429e32)
+
+
 # Dependencies
 All dependencies are in requirements.txt.
 
