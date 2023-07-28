@@ -20,3 +20,6 @@ However, perhaps this new score option is not yet available on the current versi
 - **ann_emissions_forecast.py:** Script developed in python responsible to realise emissions forecasting using the ANN. The dataset used is the dataset already pre-processed. The results are saved on schema results on postgresql database.
 - **xgboost_emission_forecast.py:** Script developed in python responsible to realise emissions forecasting using the XgBoost. The dataset used is the dataset already pre-processed. The results are saved on schema results on postgresql database.
 - **results.ipynb** Script developed using jupyter notebook responsible to realise results apuration of all methods during $CO_2$ emissions forecasting of the multi-source power generation system of Belgium, Germany, Portugal and Spain. The script uses as input the information available on the schema results of the PostgreSQL database. This script saves figures to illustrate the results on **/figures**.
+
+# Instructions for running the simulations
+After installing all packages (available in the requirements.txt), the scripts can be used in the standard format of any Python script. **data_pre_processing.ipynb** and **results.ipynb** were developed using the Jupyter Notebook interface for Python. The other scripts were implemented as a Python archive (.py).
